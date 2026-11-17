@@ -1,0 +1,392 @@
+---
+version: 0.9.37
+name: kolbo-transcription
+description: |
+  Transcribe audio/video into text + SRT subtitles + word-by-word SRT, and route
+  multimodal audio/video analysis to the right tool (transcribe vs upload-to-chat
+  vs hybrid path).
+
+  Use when: "transcribe this", "give me an SRT", "I need word-by-word timing",
+  "make subtitles", "what did they say about X?", "summarize this meeting",
+  "find the part where they mention Y", "analyze this video", "what's in this audio?",
+  "process this podcast / interview / lecture".
+
+  Chain: transcription output (text, SRT URL) can feed kolbo-html-artifacts
+  (caption decks), kolbo-generate (Veo videos with synced dialogue), or stay
+  standalone as the deliverable.
+
+  NOT for: live audio capture (Kolbo is file-based), translation (transcribe in
+  source language; translate downstream with chat), image analysis (use native
+  vision — Read the image directly).
+argument-hint: "[file-path-or-url] [--deliverable srt|text|word-by-word|analysis]"
+allowed-tools: Bash, Read, Write, Edit
+---
+
+<!-- AUTO-GENERATED from kolbo-code packages/opencode/skills/kolbo — DO NOT EDIT.
+     Edit the canonical skill and let .github/workflows/sync-skill-to-plugin.yml regenerate this. -->
+
+# Kolbo Transcription
+
+## Media selection preferences
+Honor explicit models, presets, budget and inputs. Choose only eligible catalog candidates with all required capabilities. Use requested presets; otherwise use fitting presets when useful. For video generation, editing and lip-sync, when the user has not explicitly selected an output resolution, use the cheapest supported output resolution from the live catalog and pass it explicitly; do not inherit an expensive provider default. Preserve explicit user-selected resolution/settings. Finish fully, cinematic, professional, final, production and available credits are NOT permission to increase resolution. Never infer output resolution from reference media or export settings. A budget is a ceiling, not a spending target. Do not upscale or regenerate at a higher tier without explicit user authorization. If pricing or supported resolutions cannot be verified, inspect the catalog before dispatch; never invent a tier. Models with fixed output resolution use their native output. Never treat a policy refusal as a technical failure or route around safeguards.
+Default images and edits: the latest GPT Image, now GPT Image 2.6 Flare (fast, everyday) / Sunburst (precise detail, consistent edits); medium for value, high for ordinary maximum quality. Older GPT Image 2.5 / 2 only when named. For no background, animated GIF or SVG use 2.6 natively (`background: "transparent"`, `output_format: "gif"` / `"svg"`); never fake them with prompt words or HTML. Reserve xhigh/max for exceptional dense or difficult multilingual text after medium/high prove insufficient; do not automatically spend on retries. Nano Banana 2.1 (latest Flash; Nano Banana 2 only when named) is secondary. Seedream 5.0 Pro favors cinematic aesthetics over complex instruction fidelity; Wan 2.7 Pro is another creative alternative. Z Image/P Image for cheap tests. Midjourney for artistic concepts only, never editing. Soul V2 for realistic people/UGC concepts; derive character sheets before registering finished Visual DNA. Mirage Film 2 for environments and cinematic inspiration.
+**Real-looking examples (Zohar 2026-10-19).** Real people go to Soul 2 (`soul/v2/standard`), or sometimes Midjourney; cinematic shots go to Seedream 5 Pro. Write prompts with specific lived-in details, available light and phone or 35mm film language. Never use generic "premium e-commerce, studio lighting" prompts: on nano-banana-2 they read as "really fake, gross". When realism matters, run two models on the same prompts, compare on a contact sheet and keep the most real.
+**Seedance 2.5 Draft:** explicitly pass `model: "seedance-2-5", draft: true` (or legacy `resolution: "480p-draft"`) on the matching video generation tool. Plain `480p` is regular video, never Draft. Use ordinary credits. Finalize a saved draft via `video_tools` `draft_quote` then authorized `draft_enhance`, with its video URL, original project and quoted supported resolution; do not regenerate the prompt. See `references/seedance25.md`.
+For Draft video editing, use `generate_video_from_video` with `model: "seedance-2-5-video-to-video", draft: true`. The source duration and aspect ratio are inherited. Draft uses regular edit 480p pricing; optional finalization uses regular edit 1080p pricing, both charging combined input/output seconds. Read the live catalog and quote rather than hardcoding prices. This app-credit/MCP route does not imply USD-wallet video-edit execution availability.
+Default video: Seedance 2.5 for general cinematic work (not Hebrew speech); for narrative film use `references/directing-document.md`, whose rules are proven on Seedance only (§6 there says what transfers to Kling, Wan 3 and Veo). Kling specializes in controlled single-image and first/last-frame shots (the Kling-based Cinema Studio film CUPID started every video from a designed still). Wan 3.0 specializes in motion graphics and animated typography — native Hebrew speech is poor; attached-audio lip-sync works well. It is also the proven **talking-avatar tool**: a person's Visual DNA plus 2 real face photos plus their own voice as `@Audio 1` gives 0.99 voice sync, holds their identity and works in any environment (`references/talking-avatar-wan3.md`, 2026-10-28). MiniMax H3 offers higher resolution and strong attached-audio lip-sync; H3 Max favors speed at lower resolution with the same audio lip-sync strength. **Native Hebrew dialogue:** Gemini Omni Flash 1.1 or Gemini Omni 1 (best). Seedance 2 / 2.5 do not speak Hebrew — use Latin transliteration in quotes on Seedance, or switch to Gemini Omni. Grok Imagine 1.5 and Seedance 2.0 are non-Hebrew alternatives. P Video/Draft for cheap fast tests. Use base, edit or extend variants only with their required inputs.
+Existing-video lip-sync: Sync 3 for active-speaker handling; PixVerse for cartoons/2D and economical faster work. Portrait lip-sync: Veed Fabric or HeyGen Avatar; P Avatar for budget work. LTX Audio to Video for camera/environment motion with audio-driven performance.
+Default music: Suno v6. ElevenLabs Music is an alternative, especially for duration-directed scoring. Both accept custom duration requests; validate the selected tool schema and inspect actual output duration.
+
+## Step 0 — Bootstrap
+Once per conversation, before any other Kolbo tool call:
+
+1. **Run `check_credits`.** If it fails with "Session expired" / "Not authenticated", ask the user to run `kolbo auth login` (or their branded CLI command like `sapir auth login`) and reload the editor.
+2. **If `list_models` returns empty**, MCP isn't wired — same fix.
+3. Use the balance ONLY for the low-balance check at this moment (see the "credits remaining" rule in the brief section below).
+
+If the user is on a whitelabel build (`sapir`, etc.), they must use their branded command — not `kolbo`. See `references/troubleshooting.md`.
+
+## 🎬 Confirm the Creative Brief & Cost BEFORE Generating (CRITICAL — read first)
+**Kobi inside the Kolbo app: skip this whole section.** The request authorizes the work and `submit_plan` is the only approval. Never ask "should I go ahead?"; pick sensible defaults, call `submit_plan` and make it.
+
+Never fire a paid generation the moment the user says "make X". First **present the brief back as a confirmation the user can change** — this is the single most important interaction. It gives the user control over what gets created and what it costs, instead of silently spending credits on defaults.
+
+**Before ANY paid image / video / music / speech / 3D generation**, unless the user has *explicitly* dictated every key parameter in this message, ask ONE labeled question (the UI renders it as an options card) confirming:
+
+- **Model** — your recommended pick as the default option, plus 1–2 alternatives (with their credit cost). Suggest a cheaper alternative if one fits.
+- **Aspect ratio** — e.g. `1:1 / 9:16 / 16:9` (offer the sensible default first).
+- **Count** — how many (1 / 4 / …).
+- **Resolution / quality / duration** — where the model supports it.
+- **Creative direction** — style / mood / scene, when the user was vague ("4 cats" → offer style options: photoreal / illustrated / cinematic / surprise-me).
+- **Credit cost** — state the total (`✦ N credits`) right in the question so cost is never a surprise.
+
+Then generate **only** with the confirmed parameters. If the user changes an option, use the change. This mirrors the approval-card flow: propose → let them adjust → confirm → generate. Never fire on defaults the user didn't choose.
+
+**Only skip the brief/cost confirmation when** the user's message already pins model + aspect + count + creative direction (e.g. "generate 4 photoreal tabby cats, 1:1, z-image/turbo") — then just state the cost one-liner and fire. A low credit cost is **not** a reason to skip: cheap ≠ no-confirmation. What matters is whether the user actually chose the parameters.
+
+**Cost rules** (full tables + formulas in `references/cost-and-validation.md`):
+
+- **Video/lipsync `credit` is per-SECOND, not per-clip**: normally `total = credit × output_duration`. If video references are attached and `video_input_credit` is present, use the alternate provider tariff instead: `video_input_credit × (sum ceil(each input video duration) + output seconds) × video_input_resolution_multiplier`. Dedicated Seedance Edit uses its selected source duration as output; Extend uses the requested added duration. The other carve-out is `flat_credit_by_resolution`.
+- **Batch totalling 100+ credits**: run `check_credits` first.
+- **Quote real cost**: when the user approves the result, log its actual `credits_used` (from the tool result) to `.kolbo/production.md` — never `base × count`.
+- **Never state "credits remaining" from arithmetic** (opening balance − generation costs). Coding/chat usage deducts credits too, so the math is always wrong. Report cost only; if the user asks for their balance, call `check_credits` fresh at that moment. Widget hosts show the total and plan, credit-pack, and redemption breakdown from `structuredContent.credits`; this is a snapshot at check time. Text hosts receive the same breakdown as plain text.
+- **Out of credits → `show_plans`.** A generation refused for credits already returns the upgrade card automatically — do NOT retry it, and do not re-run the tool "to be sure". Call `show_plans` yourself when the user asks about pricing, plans, upgrading, or how to get more credits. Prices are live and promo-adjusted; never quote them from memory. The user completes any purchase themselves on app.kolbo.ai/pricing — you cannot buy for them.
+
+For multi-scene / batch work this pairs with `generate_creative_director` (see below) — still confirm the brief first.
+
+## ⚠️ Load the matching skill BEFORE generating (HARD RULE)
+This `kolbo` skill is the mandatory first layer for every Kolbo media task. Do **not** call `generate_*` / `generate_elements` / `generate_image_edit`, or write the billable prompt for them, until you have loaded every matching dependency **in this turn** (the `skill` tool for bundled skills and Read of the required Kolbo references). "I already know this," memory, or a prior-turn load does not count. Users will never invoke these skills themselves.
+
+Dependencies accumulate: narrative Elements work requires **Kolbo + filmmaking + elements-prompting**, not whichever one was loaded first. Before the first paid call, silently check the stack and load anything missing.
+
+| About to call / user intent | `skill` tool | Also Read |
+|---|---|---|
+| `generate_elements` **or** any video with Visual DNA **or** Seedance 2 / 2.5 / WAN / MiniMax H3 / Gemini video | `elements-prompting` | `references/seedance.md` (+ `seedance25.md` if 2.5) and `references/visual-dna.md` when DNA is in play |
+| `generate_image` / `generate_image_edit` | `image-prompting-guide` | `references/gpt-image.md` / `nano-banana.md` / `prompt-copilot.md` as the model requires. Complex stills / identity lock: `references/prompt-structure.md` |
+| `generate_video*` that is **not** Elements/DNA (Kling, Veo, Sora, Grok, Hailuo, generic t2v/i2v) | `video-prompting-guide` | matching `references/models/*.md` |
+| `generate_music` | `music-prompting` | `references/music.md` |
+| UGC / phone-shot / selfie / "authentic" / must-not-look-like-an-ad | — | `references/ugc-smartphone.md` |
+| Marketing / TV spot / branded video / unboxing / product review | — | `references/marketing-studio.md` |
+| DTC ad image | — | `references/dtc-ads.md` |
+| Product photoshoot / hero / lifestyle / try-on | — | `references/product-photoshoot.md` |
+| Thumbnail / cover | — | `references/thumbnails.md` |
+| Marketplace listing cards | — | `references/marketplace-cards.md` |
+| Film / episode / connected scene | — | `references/filmmaking.md` + `production-planning.md` |
+
+## ⚠️ Visual DNA `@Name` in the prompt (HARD RULE — always on)
+Passing `visual_dna_ids` is **not enough**. For every DNA in that array you MUST also write `@ExactStoredName` in the prompt text (the `name` from `list_visual_dnas` / `create_visual_dna`). The engine binds identity by parsing `@tags`. No `@tag` → the DNA is wasted.
+
+- Right: `visual_dna_ids: ["vdna_…"]` + prompt `@Zohar walks into frame`
+- Wrong: `Zohar's`, `Zohar`, `the left man`, `the man on the LEFT`, `Visual DNA anchors: the man on the LEFT…` — none of these bind
+- Never invent a role label or possessive as a substitute for `@Name`
+- **Asset tags are exempt from every English-only prompt rule.** Copy the actual stored `name` verbatim in its original language, case, spaces, punctuation, and diacritics. Stored `אסתר` → `@אסתר`, `ليلى` → `@ليلى`, `小雨` → `@小雨`; never `@Esther`, `@Layla`, or another translated/transliterated alias. Never slugify or rename an existing DNA to make a prompt English. Preserve these tags through every rewrite and final tool call.
+- Same rule for moodboards: `#ExactBoardName`
+
+**Rewrite / compile never drops a tag.** If the user, a prior prompt, or `list_visual_dnas` already has `@gal_suit` / `@yonatan` / `#Board`, the Locked Intro you write MUST still contain those exact tokens in CAST **and** in every shot they appear in. Do not "clean" them into first names, `@Image 1 (Lee)`, "the singer", or a SCENE CONTEXT / ACTIVE REFERENCES block with no `@`. A compile that loses a tag is a failed turn — put the tags back before calling `generate_*`.
+
+Before ANY generation call using `visual_dna_ids` (images, edits, Elements, or Creative Director): resolve each id to its stored `name` from the selected asset binding or `list_visual_dnas` / `get_visual_dna`, then confirm the final prompt includes the exact `@` + name. Missing or rewritten even one → fix the prompt, do not fire.
+
+Resolve names with `list_visual_dnas` first. Full binding rules: `references/visual-dna.md`.
+
+**Every still on a DNA can reach the model.** Kolbo now sends all of a DNA's reference images that fit the model's image-slot cap (user uploads first, then one still per DNA, then leftovers round-robin). If a DNA only gets one leftover slot and has no real character sheet, unused stills become a white grid. Mixed-vibe stills or environment photos that contain a main character will confuse the generation — keep each DNA surgically clean. Create-and-pack rules: `references/visual-dna.md`.
+
+## 📁 Projects — Where Work Lands (CRITICAL)
+Everything in Kolbo — sessions, generations, media, docs — lives inside a PROJECT. Getting this wrong is the #1 user complaint ("my work went to the wrong project").
+
+1. **User names a project** ("in my Acme project", "for the film") → call `list_projects` ONCE to resolve the name to an ObjectId, then pass that **same** id as `project_id` on **EVERY** subsequent `generate_*` / `upload_media` / `create_doc` / `chat_send_message` call in **this conversation**. There is no server-side sticky store — omitting it on any later call silently lands in the default "API Generations" bucket (`is_default: true`). Once resolved, treat that id as required for the rest of the conversation. Accounts often hold hundreds of projects, so pass `list_projects({ search: "acme" })` rather than listing everything; the list is paginated (50/page) and hides archived projects unless you pass `include_archived: true`. When the user starts new work, `create_project` first, then pass its id the same way.
+2. **No project mentioned** → omit `project_id`; the default bucket is correct. Don't ask unless intent is ambiguous. If `list_sessions` already returned a `project_id` for the work you are continuing, keep passing that id.
+3. **Work landed in the wrong project? MOVE it, never regenerate**: `move_session` relocates a whole session + all its media (generation sessions and chats; Creative Director, transcription, global_image_edit and shorts sessions return `SESSION_TYPE_NOT_MOVABLE` — move their media with `bulk_move_media` instead); `move_media` / `bulk_move_media` / `move_folder_contents` relocate individual media items. Empty leftover sessions after a move: `delete_session` (soft-delete; `restore_session` undoes it). `rename_session` only changes the sidebar title.
+
+## ⚠️ One session per plan bucket (HARD RULE)
+Omitting `session_id` on a generate call creates a **new** Kolbo sidebar session. Do that only when the **plan** starts a new bucket — not per take, not per shot, not because you just called a tool.
+
+Name buckets from the plan you already showed the user, then `rename_session` on first create:
+
+| Bucket | What lives in it | Kind |
+|---|---|---|
+| `Cast` | every character sheet / character DNA | image |
+| `Locations` | every environment | image |
+| `Props` | hero products / vehicles (if any) | image |
+| `Scene NN — <slug>` | that scene's video shots **and** retakes | video |
+
+How to thread:
+
+1. First generate of a bucket → omit `session_id`, read it from the result, immediately `rename_session` to the plan name (`Cast`, `Locations`, `Scene 03 — rooftop chase`).
+2. Every later generate in that bucket (more characters, another environment, shot 2, "make it darker", redo take 3) → pass that **same** `session_id`.
+3. New scene or new concept → new session. Same scene / same cast pass → never a new session.
+4. Image tools and video tools cannot share an id (server kinds differ). Cast/Locations stay image; scene clips stay video.
+
+After the user approves a bucket, write its `session_id` + plan name into `.kolbo/production.md` `### Sessions`. Do not create or update the file for a pending bucket. Full rules: `references/production-planning.md` + `production-log.md`.
+
+## ⚠️ Generation lifecycle — source of truth, waiting, failures (HARD RULE — read this)
+**How calls work:** each generation tool blocks until the job is fully complete. Images: seconds. Video: minutes. Multiple tool calls in one response run concurrently. On hosts with live widgets the tool instead returns `submitted` (or `_timed_out`) instantly — the card updates on its own.
+
+Four surfaces show the same job. Use this map — never invent a fifth:
+
+| Surface | What it is | Trust it for |
+|---|---|---|
+| **Library** (right panel — "This session" / "All media") | User-facing gallery of **completed** media | "Is the user's output there?" Point humans here — never to chat history. Finished clips/images land automatically — do **not** call `list_media` / `get_media` / `list_session_generations` to "check if it worked" after a generate you already submitted (burns credits/context, can pollute the session). A K/logo spinner tile **is** the in-progress placeholder for the same job, not a missing one. |
+| **Chat generation card** | Progress chrome while a job is in flight | Status badge only (`Generating` / done). A **black / empty preview while Generating is NORMAL** — the iframe has nothing to paint yet. It is **not** failure, not "lost", not a reason to re-fire. |
+| **`get_generation_status`** (MCP) | Agent API for job state | Whether the server job is `completed` / `failed` / still running, and the final `urls`. This is your SoT for in-flight work — **not** the card pixels. |
+| **`.kolbo/production.md`** | Your private log across turns | User-approved ids + URLs only. Compaction-safe memory — not the user gallery or a candidate scratchpad. |
+
+**🛑 NEVER re-fire a generation you already called.** Aborted / timed-out / `submitted` calls still process server-side. Finish with `get_generation_status` (`wait=true`) — never a second `generate_*`.
+
+**After `submitted` / `_timed_out` — avoid idle work (credit guard).** For a multi-output request, first submit all independent authorized items within the supported concurrency limit. Do not end the task after submitting only the first item or batch. If more requested items are waiting for capacity or output dependencies, use one batched `get_generation_status` call with `wait=true`, then submit the next ready batch. Once every requested item is submitted and no further work needs its output, tell the user it is generating in Library / the cards and end the turn. Submitted is not completed. Do not perform unrelated thinking, file edits, or speculative extra generations while waiting.
+
+**Checking status — NEVER poll in a loop.** `get_generation_status` takes `wait=true` (blocks server-side until done, ~3 min) and `generation_ids` (check MANY generations in ONE call — returns `all_done` + which are still running). One `wait=true` call replaces any polling loop: check ALL in-flight ids in ONE call, never one by one, never without `wait`. If it comes back with some still processing, call it ONCE more with `wait=true` and the remaining ids.
+
+**Detecting failure — a generation can fail three ways. Treat ALL as failure:**
+
+1. **Tool returns `error`** — explicit. Surface it and suggest a retry. Keep the `generation_id` in the active run for recovery; never put failures in production.md.
+2. **Tool returns `completed` but `urls` is empty** — silent failure (NSFW filter, model OOM, upstream 5xx). Tell user "completed without an output — retrying" and re-fire ONCE. Do NOT claim it worked.
+3. **Tool hangs / never returns** — MCP poll timed out. Call `get_generation_status(generation_id, wait=true)` IMMEDIATELY. The server might be done.
+
+**Reporting:**
+- Don't celebrate before reading the result. Verify `urls` is non-empty.
+- Don't auto-retry without surfacing the failure. Partial batches: list failed items + reasons + successful count, and surface the user's count — "6 of 8 ready", not "videos ready". Never "✅ all done!" on partials.
+- Log only successful results the user explicitly approves to `.kolbo/production.md` — never pending, rejected, or failed items.
+- When done: say the result is in **Library → This session**. "Where is it?" → Library (This session). "Is it done?" with no urls yet → `get_generation_status` once.
+
+`failure` envelope structure + retry rules: `references/troubleshooting.md`.
+
+## ⚠️ Generated URLs in Chat (CRITICAL)
+Chat renders markdown natively. `![alt](url)` = inline image. `[label](url)` = labeled link with preview.
+- **Catalog-style replies** (numbered lists of characters / scenes / products): embed `![alt](url)` so each item shows inline.
+- **Conversational replies** ("4 shots ready"): keep prose short. Avoid bare URL dumps and HTML `<table>` grids — Library already provides a gallery.
+
+**After `generate_creative_director` completes** — share results as individual URLs, one per scene. Do NOT create an HTML grid artifact.
+
+**Never update `.kolbo/production.md` merely because a generation succeeded.** Keep the result provisional in the generation card / Library, ask the user to choose, and write only the explicitly approved winner in the same turn as approval. Brief approval before generation is not output approval; silence, a topic change, or requesting the next task is not approval. See `references/production-log.md`.
+
+## Transcription & Video/Audio Analysis
+
+Load this file when the user wants to transcribe audio/video, get SRT subtitles, or analyze video/audio content. For image analysis, use native vision (no tool needed) — see "Image analysis" at bottom.
+
+### Decision Tree
+
+Pick the route from the question and coverage needed. For long recordings or iterative evidence review, first read `video-investigation.md`.
+
+```
+Image (jpg/png/webp)?                         → Read directly (native vision, up to 10 per pass)
+Long recording / cuts / verified content or audiovisual investigation? → prepare_video_inspection → inspect_video → targeted evidence analysis/ASR
+One-off short video or YouTube question?      → analyze_video
+User wants the transcript/SRT as deliverable? → transcribe_audio, return the URLs
+Precise answer about one specific frame?      → inspect_video kind=frame at a source timestamp
+File is only reachable locally and >100MB?    → split with ffmpeg, or HYBRID below
+```
+
+### `analyze_video` — one-off video understanding
+
+Agentic Gemini can navigate selected frames/audio/transcript. It remains bounded by provider limits, timeout and model behavior; do not assume it reviewed an entire recording. For long-form investigation use the prepared-source evidence workflow so the agent controls coverage and can verify or revise findings.
+
+- `video_url` (public https, e.g. the URL returned by `upload_media` / `list_media`) **or** `youtube_url`.
+- `prompt`: the question. Ask directly — "At what timestamp does the logo appear?", "How many people speak, and who says X?", "List every product shown with its time". Omit for a full description + verbatim transcript.
+- `quality`: `standard` (default) or `hq` (short clips where precision matters; ~2.5x the token price).
+- Sync — returns `analysis`, `model`, `usage`, `credits_used`. Billed by real token usage; long videos are still cheap under agentic navigation.
+- Local file → `create_upload_ticket` / `upload_media` / `media_upload_widget` first, then pass the URL.
+- It does not return SRT files. For subtitles or word timings use `transcribe_audio`.
+
+### Why `upload_media` → chat is **not** the default for video questions (use `analyze_video`)
+
+Gemini-via-chat processes frames + motion + audio in one pass and is the simplest route when it works. But it has three known failure surfaces — recognize them and pivot to the hybrid path:
+
+1. **>100MB upload cap.** Hard limit; the upload won't succeed. No option but to split with ffmpeg or go hybrid.
+2. **Long-form decay** (rough threshold: 15–20 min). Even when it fits, attention degrades — shallow or hallucinated answers on the back half of the file.
+3. **Transcription-dense laziness.** Lectures, interviews, podcasts, anything where speech is the substance: chat models summarize aggressively, paraphrase quotes wrong, or silently skip stretches. Always transcribe these first to get the actual words, then add visuals only if they matter.
+
+### The hybrid path (workaround for all three failures)
+
+```
+1. transcribe_audio({ source }) → text, srt_url, word_by_word_srt_url, duration
+2. Read the transcript text from the tool output directly
+3. Pick 3–8 timestamps from the SRT where visuals actually matter
+4. ffmpeg -ss <ts> -i <file> -frames:v 1 <frame.jpg>   (one extract per timestamp)
+5. Read each frame with native vision (up to ~10 frames per analysis pass)
+6. Synthesize from transcript + frames + the user's question
+```
+
+This is usually **cheaper** than chat for long files — transcription is per-minute, ffmpeg + Read are free — and produces stronger answers on dialogue-heavy material because you have the complete text, not a model's summary of it.
+
+For media >30 min (past the transcription cap), split with ffmpeg into ~25-min chunks, transcribe each, concatenate.
+
+### Transcribe-as-deliverable vs transcribe-as-input
+
+| Request pattern | Action |
+|---|---|
+| "Transcribe this" / "give me an SRT" / "I need word-by-word timing" / "make subtitles" | Run `transcribe_audio`, return the URL(s). The transcript IS the deliverable. |
+| "What did they say about X?" / "Summarize this meeting" / "Find the part where they mention Y" | Run `transcribe_audio` to *get* the text → **you** read/summarize/search. Transcript is a means, not the answer. |
+
+### `transcribe_audio` — tool details
+
+- `source`: URL or absolute local path.
+- **Audio**: mp3, wav, m4a, flac, aac. **Video** (audio track extracted): mp4, mov, webm, mkv, avi, m4v.
+- **30-minute hard cap.** Longer → split with ffmpeg first.
+- Returns:
+  - `text` — full transcript, plain.
+  - `srt_url` — grouped SRT (~12 words per line, up to 2 lines per subtitle). Use this for normal subtitle delivery.
+  - `word_by_word_srt_url` — one word per cue with millisecond-precise start/end (ElevenLabs Scribe v3). Use **only** when downstream is animation (Remotion captions, after-effects karaoke, precise speech-aligned cuts). Noise for normal subtitle workflows.
+  - `txt_url` — plain text file.
+  - `duration` — seconds.
+- Cost: per-minute (`model.credit × duration_minutes`). Run `check_credits` before transcribing very long files.
+- Read-only / discovery — does NOT trigger the `.kolbo/production.md` log nudge. If the user wants the transcript saved as a durable artifact, `Write` it to a workspace file, not the production log.
+
+### `upload_media` → `chat_send_message` — tool details
+
+- `upload_media({ source: "/absolute/local/path/file.mp4" })` → returns `{ url, thumbnail_url, ... }`. **Use `url`** (the CDN URL); ignore `thumbnail_url` (preview JPG only).
+- `chat_send_message({ message, media_urls: [url] })`:
+  - `media_urls` is **mandatory** — the model only sees the file if you pass the CDN URL here. Always an array.
+  - **Omit `model`** — Smart Select auto-routes to Gemini when media is detected.
+  - Sessions do NOT remember media between messages. On retry: reuse the same CDN URL (no re-upload), but always pass `media_urls` again.
+  - Batch / many short videos cost-sensitively: `list_models` for the cheapest Gemini, pass it explicitly.
+
+### Image analysis — never via chat
+
+You have native vision. **Always `Read` images directly** (you handle up to 10 per pass). Do not `upload_media` + chat for images unless the user explicitly names a specific Kolbo chat model. Don't extract frames from images either — they're already viewable.
+
+**NEVER ask the user which path to use — diagnose from the file profile and pick.**
+
+### ⚠️ Batching Media in Chat Messages (CRITICAL)
+
+**Send ALL media in ONE `chat_send_message` call.** `media_urls` accepts up to **10 URLs**. Each separate chat call counts toward rate limits — splitting trips "Too many generation requests."
+
+```
+# Step 1: parallel uploads (one response)
+upload_media({ source: "video1.mp4" }) → url1
+... (up to 10)
+
+# Step 2: ONE chat call with all URLs
+chat_send_message({ message: "Analyze all 5 videos...", media_urls: [url1, url2, ...] })
+```
+
+On 429: wait 60s, retry the same chat call — reuse the CDN URLs, do not re-upload.
+
+**Never:** pass a local path in `media_urls` (CDN URLs only); use a transcription `.txt` URL as a video URL; construct a CDN URL yourself; split media across multiple chat calls.
+
+### Analyzing the source before a chained generation — when it's worth it
+
+Before feeding a media asset into another generation tool (`generate_image_edit`, `image_tools`, `generate_video_from_image`, `generate_first_last_frame`, `generate_video_from_video`, `video_tools`, `generate_elements`, `generate_lipsync`), think about whether you actually *know* what's in the source. If you don't, analyze it first so the next prompt can reference concrete details instead of generic adjectives.
+
+**Analyze first when:**
+
+- The source is **old** — more than a few turns back, or pulled via `list_media` / `get_media` from earlier in the project. Context has drifted; you likely don't remember the specifics.
+- The source was **user-provided without a description** — they pasted a URL or uploaded a file but didn't say what it shows.
+- The previous prompt was **vague** ("make something pretty", "a cool shot") — the output details matter and you don't know them.
+- The chain step needs to **preserve specific details** the original prompt didn't pin down (exact pose, color of a prop, lighting direction, audio room tone, etc.).
+- Source is a **video or audio** going into elements / video-from-video / lipsync — motion direction, pacing, voice characteristics, and ambient bed drive the next prompt and can't be guessed from a URL.
+
+**Skip analysis when:**
+
+- You **just generated** the asset in the same conversation with a precise prompt — that prompt *is* the spec. Re-analyzing wastes credits.
+- The edit is **mechanical** — "remove background", "brighten 10%", "loop to 5 seconds", "crop to 1:1". The source content doesn't matter.
+- The user already **described what's in it** in this turn.
+
+Default to skipping unless one of the "analyze first" cases applies — an analysis-per-step habit on long chains burns credits and latency without adding signal.
+
+**How to analyze (pick by media type):**
+
+| Source media | How |
+|---|---|
+| Image (URL or local) | Your native vision — view it directly. No `chat_send_message` round-trip needed. |
+| Video / Audio | `chat_send_message({ message: "Describe...", media_urls: [url] })`. Batch up to 10 URLs in **one** call (see batching rule above). Omit `model` so Smart Select routes to Gemini vision. |
+
+**What the analysis should extract** (use whatever is relevant for the next step's prompt):
+
+- **Subject** — pose, expression, framing (head-and-shoulders / full body / wide).
+- **Wardrobe & props** — exact colors, materials, distinguishing items.
+- **Scene & environment** — location, time of day, weather, background depth.
+- **Lighting & color palette** — dominant temperature, key/fill direction, contrast, color grade.
+- **Camera** — angle, focal length feel (wide / portrait), depth-of-field.
+- **Motion** (videos only) — direction, speed, camera move (push-in, pan, locked), what changes between first and last frame.
+- **Audio** (videos/audio only) — voice characteristics, ambient bed, speech pace, music tempo/mood.
+- **Anything that already looks wrong** — artifacts, blurred faces, wrong fingers, blown highlights, audio glitches — note these so the next prompt either fixes them (edit) or doesn't preserve them (elements/video).
+
+**Then write the next prompt with concrete references**, not generic adjectives. Example for an image-to-video chain:
+
+Bad — generic, no analysis:
+```
+prompt: "Animate this image with a slow push-in"
+image_url: <generated still>
+```
+
+Good — analyzed first, prompt names the specifics:
+```
+prompt: "Slow 4-second dolly-in toward @maya's face from the medium shot;
+         the warm golden-hour rim light on her left shoulder stays
+         consistent; the wind moves the leaves behind her gently to the
+         right. Camera locked, no shake. Subject does not turn — she keeps
+         the half-smile and direct eye contact from the still."
+image_url: <generated still>
+visual_dna_ids: ["vdna_8f2c"]   // maya
+```
+
+The point is **not** to dump an essay into the prompt — it's to make sure every concrete detail the next model needs to preserve (or change) is named, so the chain doesn't lose continuity across steps.
+
+**Production-log tie-in:** only if the still/clip is already user-approved and present in `.kolbo/production.md`, add a one-line analysis beside its URL. Never create an entry for an unapproved asset merely because it was analyzed.
+
+### Image Analysis Detail (when the user uploads images)
+
+When the user shares an image and asks about it:
+
+- **Analyze thoroughly**: describe composition, subjects, colors, lighting, style, text/signage, setting, mood, visible objects, and any embedded information (charts, diagrams, screenshots).
+- **Reference specific regions** when helpful: "top-left corner", "in the foreground", "the figure on the right".
+- **Extract text verbatim** when asked (OCR-style requests are fine).
+- **Cannot identify real people.** Describe hair, clothing, pose, expression, and apparent role — but never name a specific individual, even a well-known public figure. If the user insists, decline and offer to describe instead.
+- **Copyrighted content**: summarize and reference, don't reproduce verbatim large chunks.
+- If the user wants an **edit** based on the analysis, hand off to `generate_image_edit` (visual edit) or `generate_video_from_image` (motion).
+
+## Bundled references
+
+- [acting-direction](references/acting-direction.md)
+- [asset-preproduction](references/asset-preproduction.md)
+- [audio-dialogue-music](references/audio-dialogue-music.md)
+- [blocking-continuity](references/blocking-continuity.md)
+- [cinematography](references/cinematography.md)
+- [directing-document](references/directing-document.md)
+- [physics-action](references/physics-action.md)
+- [production-bible](references/production-bible.md)
+- [prompt-contracts](references/prompt-contracts.md)
+- [routing](references/routing.md)
+- [scene-engine](references/scene-engine.md)
+- [seedance25-craft](references/seedance25-craft.md)
+- [validation](references/validation.md)
+- [workflows](references/workflows.md)
+- [gpt-image](references/gpt-image.md)
+- [music](references/music.md)
+- [nano-banana](references/nano-banana.md)
+- [seedance](references/seedance.md)
+- [seedance25](references/seedance25.md)
+- [cost-and-validation](references/cost-and-validation.md)
+- [dtc-ads](references/dtc-ads.md)
+- [filmmaking](references/filmmaking.md)
+- [marketing-studio](references/marketing-studio.md)
+- [marketplace-cards](references/marketplace-cards.md)
+- [product-photoshoot](references/product-photoshoot.md)
+- [production-log](references/production-log.md)
+- [production-planning](references/production-planning.md)
+- [prompt-structure](references/prompt-structure.md)
+- [talking-avatar-wan3](references/talking-avatar-wan3.md)
+- [thumbnails](references/thumbnails.md)
+- [troubleshooting](references/troubleshooting.md)
+- [ugc-smartphone](references/ugc-smartphone.md)
+- [visual-dna](references/visual-dna.md)

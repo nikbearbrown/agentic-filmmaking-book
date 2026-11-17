@@ -1,0 +1,372 @@
+---
+version: 0.9.37
+name: kolbo-music
+description: |
+  Generate music via Kolbo — primarily Suno + variants. Full songs, lyrics,
+  instrumentals, jingles, scores, soundtracks, lo-fi beats, ad music,
+  cinematic trailers.
+
+  Use when: "make me a song", "Suno prompt", "write lyrics for", "music prompt",
+  "ai song", "soundtrack", "jingle", "lo-fi beat", "cinematic score",
+  "instrumental for [scene]", "background music for my video".
+
+  Chain: usually standalone, but ad/video flows often pair this with
+  kolbo-marketing-studio or kolbo-generate (video) — generate music separately,
+  then mux client-side or pass the music URL into a video tool that supports
+  `audio_url`.
+
+  NOT for: TTS / voice cloning (use kolbo-generate with `generate_speech`),
+  sound effects (use kolbo-generate with `generate_sound`), full ad video
+  (use kolbo-marketing-studio).
+argument-hint: "[style description] [--lyrics file] [--instrumental] [--duration <s>]"
+allowed-tools: Bash, Read, Write, Edit
+---
+
+<!-- AUTO-GENERATED from kolbo-code packages/opencode/skills/kolbo — DO NOT EDIT.
+     Edit the canonical skill and let .github/workflows/sync-skill-to-plugin.yml regenerate this. -->
+
+# Kolbo Music
+
+## Media selection preferences
+Honor explicit models, presets, budget and inputs. Choose only eligible catalog candidates with all required capabilities. Use requested presets; otherwise use fitting presets when useful. For video generation, editing and lip-sync, when the user has not explicitly selected an output resolution, use the cheapest supported output resolution from the live catalog and pass it explicitly; do not inherit an expensive provider default. Preserve explicit user-selected resolution/settings. Finish fully, cinematic, professional, final, production and available credits are NOT permission to increase resolution. Never infer output resolution from reference media or export settings. A budget is a ceiling, not a spending target. Do not upscale or regenerate at a higher tier without explicit user authorization. If pricing or supported resolutions cannot be verified, inspect the catalog before dispatch; never invent a tier. Models with fixed output resolution use their native output. Never treat a policy refusal as a technical failure or route around safeguards.
+Default images and edits: the latest GPT Image, now GPT Image 2.6 Flare (fast, everyday) / Sunburst (precise detail, consistent edits); medium for value, high for ordinary maximum quality. Older GPT Image 2.5 / 2 only when named. For no background, animated GIF or SVG use 2.6 natively (`background: "transparent"`, `output_format: "gif"` / `"svg"`); never fake them with prompt words or HTML. Reserve xhigh/max for exceptional dense or difficult multilingual text after medium/high prove insufficient; do not automatically spend on retries. Nano Banana 2.1 (latest Flash; Nano Banana 2 only when named) is secondary. Seedream 5.0 Pro favors cinematic aesthetics over complex instruction fidelity; Wan 2.7 Pro is another creative alternative. Z Image/P Image for cheap tests. Midjourney for artistic concepts only, never editing. Soul V2 for realistic people/UGC concepts; derive character sheets before registering finished Visual DNA. Mirage Film 2 for environments and cinematic inspiration.
+**Real-looking examples (Zohar 2026-10-19).** Real people go to Soul 2 (`soul/v2/standard`), or sometimes Midjourney; cinematic shots go to Seedream 5 Pro. Write prompts with specific lived-in details, available light and phone or 35mm film language. Never use generic "premium e-commerce, studio lighting" prompts: on nano-banana-2 they read as "really fake, gross". When realism matters, run two models on the same prompts, compare on a contact sheet and keep the most real.
+**Seedance 2.5 Draft:** explicitly pass `model: "seedance-2-5", draft: true` (or legacy `resolution: "480p-draft"`) on the matching video generation tool. Plain `480p` is regular video, never Draft. Use ordinary credits. Finalize a saved draft via `video_tools` `draft_quote` then authorized `draft_enhance`, with its video URL, original project and quoted supported resolution; do not regenerate the prompt. See `references/seedance25.md`.
+For Draft video editing, use `generate_video_from_video` with `model: "seedance-2-5-video-to-video", draft: true`. The source duration and aspect ratio are inherited. Draft uses regular edit 480p pricing; optional finalization uses regular edit 1080p pricing, both charging combined input/output seconds. Read the live catalog and quote rather than hardcoding prices. This app-credit/MCP route does not imply USD-wallet video-edit execution availability.
+Default video: Seedance 2.5 for general cinematic work (not Hebrew speech); for narrative film use `references/directing-document.md`, whose rules are proven on Seedance only (§6 there says what transfers to Kling, Wan 3 and Veo). Kling specializes in controlled single-image and first/last-frame shots (the Kling-based Cinema Studio film CUPID started every video from a designed still). Wan 3.0 specializes in motion graphics and animated typography — native Hebrew speech is poor; attached-audio lip-sync works well. It is also the proven **talking-avatar tool**: a person's Visual DNA plus 2 real face photos plus their own voice as `@Audio 1` gives 0.99 voice sync, holds their identity and works in any environment (`references/talking-avatar-wan3.md`, 2026-10-28). MiniMax H3 offers higher resolution and strong attached-audio lip-sync; H3 Max favors speed at lower resolution with the same audio lip-sync strength. **Native Hebrew dialogue:** Gemini Omni Flash 1.1 or Gemini Omni 1 (best). Seedance 2 / 2.5 do not speak Hebrew — use Latin transliteration in quotes on Seedance, or switch to Gemini Omni. Grok Imagine 1.5 and Seedance 2.0 are non-Hebrew alternatives. P Video/Draft for cheap fast tests. Use base, edit or extend variants only with their required inputs.
+Existing-video lip-sync: Sync 3 for active-speaker handling; PixVerse for cartoons/2D and economical faster work. Portrait lip-sync: Veed Fabric or HeyGen Avatar; P Avatar for budget work. LTX Audio to Video for camera/environment motion with audio-driven performance.
+Default music: Suno v6. ElevenLabs Music is an alternative, especially for duration-directed scoring. Both accept custom duration requests; validate the selected tool schema and inspect actual output duration.
+
+## Step 0 — Bootstrap
+Once per conversation, before any other Kolbo tool call:
+
+1. **Run `check_credits`.** If it fails with "Session expired" / "Not authenticated", ask the user to run `kolbo auth login` (or their branded CLI command like `sapir auth login`) and reload the editor.
+2. **If `list_models` returns empty**, MCP isn't wired — same fix.
+3. Use the balance ONLY for the low-balance check at this moment (see the "credits remaining" rule in the brief section below).
+
+If the user is on a whitelabel build (`sapir`, etc.), they must use their branded command — not `kolbo`. See `references/troubleshooting.md`.
+
+## 🎬 Confirm the Creative Brief & Cost BEFORE Generating (CRITICAL — read first)
+**Kobi inside the Kolbo app: skip this whole section.** The request authorizes the work and `submit_plan` is the only approval. Never ask "should I go ahead?"; pick sensible defaults, call `submit_plan` and make it.
+
+Never fire a paid generation the moment the user says "make X". First **present the brief back as a confirmation the user can change** — this is the single most important interaction. It gives the user control over what gets created and what it costs, instead of silently spending credits on defaults.
+
+**Before ANY paid image / video / music / speech / 3D generation**, unless the user has *explicitly* dictated every key parameter in this message, ask ONE labeled question (the UI renders it as an options card) confirming:
+
+- **Model** — your recommended pick as the default option, plus 1–2 alternatives (with their credit cost). Suggest a cheaper alternative if one fits.
+- **Aspect ratio** — e.g. `1:1 / 9:16 / 16:9` (offer the sensible default first).
+- **Count** — how many (1 / 4 / …).
+- **Resolution / quality / duration** — where the model supports it.
+- **Creative direction** — style / mood / scene, when the user was vague ("4 cats" → offer style options: photoreal / illustrated / cinematic / surprise-me).
+- **Credit cost** — state the total (`✦ N credits`) right in the question so cost is never a surprise.
+
+Then generate **only** with the confirmed parameters. If the user changes an option, use the change. This mirrors the approval-card flow: propose → let them adjust → confirm → generate. Never fire on defaults the user didn't choose.
+
+**Only skip the brief/cost confirmation when** the user's message already pins model + aspect + count + creative direction (e.g. "generate 4 photoreal tabby cats, 1:1, z-image/turbo") — then just state the cost one-liner and fire. A low credit cost is **not** a reason to skip: cheap ≠ no-confirmation. What matters is whether the user actually chose the parameters.
+
+**Cost rules** (full tables + formulas in `references/cost-and-validation.md`):
+
+- **Video/lipsync `credit` is per-SECOND, not per-clip**: normally `total = credit × output_duration`. If video references are attached and `video_input_credit` is present, use the alternate provider tariff instead: `video_input_credit × (sum ceil(each input video duration) + output seconds) × video_input_resolution_multiplier`. Dedicated Seedance Edit uses its selected source duration as output; Extend uses the requested added duration. The other carve-out is `flat_credit_by_resolution`.
+- **Batch totalling 100+ credits**: run `check_credits` first.
+- **Quote real cost**: when the user approves the result, log its actual `credits_used` (from the tool result) to `.kolbo/production.md` — never `base × count`.
+- **Never state "credits remaining" from arithmetic** (opening balance − generation costs). Coding/chat usage deducts credits too, so the math is always wrong. Report cost only; if the user asks for their balance, call `check_credits` fresh at that moment. Widget hosts show the total and plan, credit-pack, and redemption breakdown from `structuredContent.credits`; this is a snapshot at check time. Text hosts receive the same breakdown as plain text.
+- **Out of credits → `show_plans`.** A generation refused for credits already returns the upgrade card automatically — do NOT retry it, and do not re-run the tool "to be sure". Call `show_plans` yourself when the user asks about pricing, plans, upgrading, or how to get more credits. Prices are live and promo-adjusted; never quote them from memory. The user completes any purchase themselves on app.kolbo.ai/pricing — you cannot buy for them.
+
+For multi-scene / batch work this pairs with `generate_creative_director` (see below) — still confirm the brief first.
+
+## ⚠️ Load the matching skill BEFORE generating (HARD RULE)
+This `kolbo` skill is the mandatory first layer for every Kolbo media task. Do **not** call `generate_*` / `generate_elements` / `generate_image_edit`, or write the billable prompt for them, until you have loaded every matching dependency **in this turn** (the `skill` tool for bundled skills and Read of the required Kolbo references). "I already know this," memory, or a prior-turn load does not count. Users will never invoke these skills themselves.
+
+Dependencies accumulate: narrative Elements work requires **Kolbo + filmmaking + elements-prompting**, not whichever one was loaded first. Before the first paid call, silently check the stack and load anything missing.
+
+| About to call / user intent | `skill` tool | Also Read |
+|---|---|---|
+| `generate_elements` **or** any video with Visual DNA **or** Seedance 2 / 2.5 / WAN / MiniMax H3 / Gemini video | `elements-prompting` | `references/seedance.md` (+ `seedance25.md` if 2.5) and `references/visual-dna.md` when DNA is in play |
+| `generate_image` / `generate_image_edit` | `image-prompting-guide` | `references/gpt-image.md` / `nano-banana.md` / `prompt-copilot.md` as the model requires. Complex stills / identity lock: `references/prompt-structure.md` |
+| `generate_video*` that is **not** Elements/DNA (Kling, Veo, Sora, Grok, Hailuo, generic t2v/i2v) | `video-prompting-guide` | matching `references/models/*.md` |
+| `generate_music` | `music-prompting` | `references/music.md` |
+| UGC / phone-shot / selfie / "authentic" / must-not-look-like-an-ad | — | `references/ugc-smartphone.md` |
+| Marketing / TV spot / branded video / unboxing / product review | — | `references/marketing-studio.md` |
+| DTC ad image | — | `references/dtc-ads.md` |
+| Product photoshoot / hero / lifestyle / try-on | — | `references/product-photoshoot.md` |
+| Thumbnail / cover | — | `references/thumbnails.md` |
+| Marketplace listing cards | — | `references/marketplace-cards.md` |
+| Film / episode / connected scene | — | `references/filmmaking.md` + `production-planning.md` |
+
+## ⚠️ Visual DNA `@Name` in the prompt (HARD RULE — always on)
+Passing `visual_dna_ids` is **not enough**. For every DNA in that array you MUST also write `@ExactStoredName` in the prompt text (the `name` from `list_visual_dnas` / `create_visual_dna`). The engine binds identity by parsing `@tags`. No `@tag` → the DNA is wasted.
+
+- Right: `visual_dna_ids: ["vdna_…"]` + prompt `@Zohar walks into frame`
+- Wrong: `Zohar's`, `Zohar`, `the left man`, `the man on the LEFT`, `Visual DNA anchors: the man on the LEFT…` — none of these bind
+- Never invent a role label or possessive as a substitute for `@Name`
+- **Asset tags are exempt from every English-only prompt rule.** Copy the actual stored `name` verbatim in its original language, case, spaces, punctuation, and diacritics. Stored `אסתר` → `@אסתר`, `ليلى` → `@ليلى`, `小雨` → `@小雨`; never `@Esther`, `@Layla`, or another translated/transliterated alias. Never slugify or rename an existing DNA to make a prompt English. Preserve these tags through every rewrite and final tool call.
+- Same rule for moodboards: `#ExactBoardName`
+
+**Rewrite / compile never drops a tag.** If the user, a prior prompt, or `list_visual_dnas` already has `@gal_suit` / `@yonatan` / `#Board`, the Locked Intro you write MUST still contain those exact tokens in CAST **and** in every shot they appear in. Do not "clean" them into first names, `@Image 1 (Lee)`, "the singer", or a SCENE CONTEXT / ACTIVE REFERENCES block with no `@`. A compile that loses a tag is a failed turn — put the tags back before calling `generate_*`.
+
+Before ANY generation call using `visual_dna_ids` (images, edits, Elements, or Creative Director): resolve each id to its stored `name` from the selected asset binding or `list_visual_dnas` / `get_visual_dna`, then confirm the final prompt includes the exact `@` + name. Missing or rewritten even one → fix the prompt, do not fire.
+
+Resolve names with `list_visual_dnas` first. Full binding rules: `references/visual-dna.md`.
+
+**Every still on a DNA can reach the model.** Kolbo now sends all of a DNA's reference images that fit the model's image-slot cap (user uploads first, then one still per DNA, then leftovers round-robin). If a DNA only gets one leftover slot and has no real character sheet, unused stills become a white grid. Mixed-vibe stills or environment photos that contain a main character will confuse the generation — keep each DNA surgically clean. Create-and-pack rules: `references/visual-dna.md`.
+
+## 📁 Projects — Where Work Lands (CRITICAL)
+Everything in Kolbo — sessions, generations, media, docs — lives inside a PROJECT. Getting this wrong is the #1 user complaint ("my work went to the wrong project").
+
+1. **User names a project** ("in my Acme project", "for the film") → call `list_projects` ONCE to resolve the name to an ObjectId, then pass that **same** id as `project_id` on **EVERY** subsequent `generate_*` / `upload_media` / `create_doc` / `chat_send_message` call in **this conversation**. There is no server-side sticky store — omitting it on any later call silently lands in the default "API Generations" bucket (`is_default: true`). Once resolved, treat that id as required for the rest of the conversation. Accounts often hold hundreds of projects, so pass `list_projects({ search: "acme" })` rather than listing everything; the list is paginated (50/page) and hides archived projects unless you pass `include_archived: true`. When the user starts new work, `create_project` first, then pass its id the same way.
+2. **No project mentioned** → omit `project_id`; the default bucket is correct. Don't ask unless intent is ambiguous. If `list_sessions` already returned a `project_id` for the work you are continuing, keep passing that id.
+3. **Work landed in the wrong project? MOVE it, never regenerate**: `move_session` relocates a whole session + all its media (generation sessions and chats; Creative Director, transcription, global_image_edit and shorts sessions return `SESSION_TYPE_NOT_MOVABLE` — move their media with `bulk_move_media` instead); `move_media` / `bulk_move_media` / `move_folder_contents` relocate individual media items. Empty leftover sessions after a move: `delete_session` (soft-delete; `restore_session` undoes it). `rename_session` only changes the sidebar title.
+
+## ⚠️ One session per plan bucket (HARD RULE)
+Omitting `session_id` on a generate call creates a **new** Kolbo sidebar session. Do that only when the **plan** starts a new bucket — not per take, not per shot, not because you just called a tool.
+
+Name buckets from the plan you already showed the user, then `rename_session` on first create:
+
+| Bucket | What lives in it | Kind |
+|---|---|---|
+| `Cast` | every character sheet / character DNA | image |
+| `Locations` | every environment | image |
+| `Props` | hero products / vehicles (if any) | image |
+| `Scene NN — <slug>` | that scene's video shots **and** retakes | video |
+
+How to thread:
+
+1. First generate of a bucket → omit `session_id`, read it from the result, immediately `rename_session` to the plan name (`Cast`, `Locations`, `Scene 03 — rooftop chase`).
+2. Every later generate in that bucket (more characters, another environment, shot 2, "make it darker", redo take 3) → pass that **same** `session_id`.
+3. New scene or new concept → new session. Same scene / same cast pass → never a new session.
+4. Image tools and video tools cannot share an id (server kinds differ). Cast/Locations stay image; scene clips stay video.
+
+After the user approves a bucket, write its `session_id` + plan name into `.kolbo/production.md` `### Sessions`. Do not create or update the file for a pending bucket. Full rules: `references/production-planning.md` + `production-log.md`.
+
+## ⚠️ Generation lifecycle — source of truth, waiting, failures (HARD RULE — read this)
+**How calls work:** each generation tool blocks until the job is fully complete. Images: seconds. Video: minutes. Multiple tool calls in one response run concurrently. On hosts with live widgets the tool instead returns `submitted` (or `_timed_out`) instantly — the card updates on its own.
+
+Four surfaces show the same job. Use this map — never invent a fifth:
+
+| Surface | What it is | Trust it for |
+|---|---|---|
+| **Library** (right panel — "This session" / "All media") | User-facing gallery of **completed** media | "Is the user's output there?" Point humans here — never to chat history. Finished clips/images land automatically — do **not** call `list_media` / `get_media` / `list_session_generations` to "check if it worked" after a generate you already submitted (burns credits/context, can pollute the session). A K/logo spinner tile **is** the in-progress placeholder for the same job, not a missing one. |
+| **Chat generation card** | Progress chrome while a job is in flight | Status badge only (`Generating` / done). A **black / empty preview while Generating is NORMAL** — the iframe has nothing to paint yet. It is **not** failure, not "lost", not a reason to re-fire. |
+| **`get_generation_status`** (MCP) | Agent API for job state | Whether the server job is `completed` / `failed` / still running, and the final `urls`. This is your SoT for in-flight work — **not** the card pixels. |
+| **`.kolbo/production.md`** | Your private log across turns | User-approved ids + URLs only. Compaction-safe memory — not the user gallery or a candidate scratchpad. |
+
+**🛑 NEVER re-fire a generation you already called.** Aborted / timed-out / `submitted` calls still process server-side. Finish with `get_generation_status` (`wait=true`) — never a second `generate_*`.
+
+**After `submitted` / `_timed_out` — avoid idle work (credit guard).** For a multi-output request, first submit all independent authorized items within the supported concurrency limit. Do not end the task after submitting only the first item or batch. If more requested items are waiting for capacity or output dependencies, use one batched `get_generation_status` call with `wait=true`, then submit the next ready batch. Once every requested item is submitted and no further work needs its output, tell the user it is generating in Library / the cards and end the turn. Submitted is not completed. Do not perform unrelated thinking, file edits, or speculative extra generations while waiting.
+
+**Checking status — NEVER poll in a loop.** `get_generation_status` takes `wait=true` (blocks server-side until done, ~3 min) and `generation_ids` (check MANY generations in ONE call — returns `all_done` + which are still running). One `wait=true` call replaces any polling loop: check ALL in-flight ids in ONE call, never one by one, never without `wait`. If it comes back with some still processing, call it ONCE more with `wait=true` and the remaining ids.
+
+**Detecting failure — a generation can fail three ways. Treat ALL as failure:**
+
+1. **Tool returns `error`** — explicit. Surface it and suggest a retry. Keep the `generation_id` in the active run for recovery; never put failures in production.md.
+2. **Tool returns `completed` but `urls` is empty** — silent failure (NSFW filter, model OOM, upstream 5xx). Tell user "completed without an output — retrying" and re-fire ONCE. Do NOT claim it worked.
+3. **Tool hangs / never returns** — MCP poll timed out. Call `get_generation_status(generation_id, wait=true)` IMMEDIATELY. The server might be done.
+
+**Reporting:**
+- Don't celebrate before reading the result. Verify `urls` is non-empty.
+- Don't auto-retry without surfacing the failure. Partial batches: list failed items + reasons + successful count, and surface the user's count — "6 of 8 ready", not "videos ready". Never "✅ all done!" on partials.
+- Log only successful results the user explicitly approves to `.kolbo/production.md` — never pending, rejected, or failed items.
+- When done: say the result is in **Library → This session**. "Where is it?" → Library (This session). "Is it done?" with no urls yet → `get_generation_status` once.
+
+`failure` envelope structure + retry rules: `references/troubleshooting.md`.
+
+## ⚠️ Generated URLs in Chat (CRITICAL)
+Chat renders markdown natively. `![alt](url)` = inline image. `[label](url)` = labeled link with preview.
+- **Catalog-style replies** (numbered lists of characters / scenes / products): embed `![alt](url)` so each item shows inline.
+- **Conversational replies** ("4 shots ready"): keep prose short. Avoid bare URL dumps and HTML `<table>` grids — Library already provides a gallery.
+
+**After `generate_creative_director` completes** — share results as individual URLs, one per scene. Do NOT create an HTML grid artifact.
+
+**Never update `.kolbo/production.md` merely because a generation succeeded.** Keep the result provisional in the generation card / Library, ask the user to choose, and write only the explicitly approved winner in the same turn as approval. Brief approval before generation is not output approval; silence, a topic change, or requesting the next task is not approval. See `references/production-log.md`.
+
+<!-- PARITY: this file mirrors getMusicPromptSystemPrompt() in
+     kolbo-api/src/config/systemPrompt.js (lines ~1259–1371).
+     When that function changes, update this file in the same session. -->
+
+## Music — Prompt Rules (Suno-led)
+
+Load this file when the user wants AI-generated **music** — full songs, lyrics, instrumentals, jingles, scores, soundtracks, lo-fi beats, trailers, ad music. Primarily Suno; the same craft applies to other music models. For TTS / voice cloning see `models/prompt-copilot.md`. For sound effects see `generate_sound` (SKILL.md tool table).
+
+**Kolbo MCP routing:** call `generate_music`. Suno is a model option — use `list_models({ type: "music_gen" })` to see versions. Pass `instrumental` and `duration` as separate params; pass the Style/Description text as `style` and the Lyrics as `lyrics`.
+
+**`prompt` is REQUIRED on every Suno call, instrumental included.** Sending only `style` (+ `instrumental: true`) is rejected with `prompt is required (or pass composition_plan for ElevenLabs Music v2.5)`, even though the tool schema does not mark `prompt` as required. Measured 2026-10-21: 5 parallel instrumental calls were all rejected, with nothing charged, then succeeded when re-sent. Put a one-sentence description of the track in `prompt` and the comma-separated descriptors in `style`.
+
+**Parallel calls: map results by `generation_id`, never by file name.** Without a `session_id`, parallel `generate_music` calls can land in one shared session (the API's daily session per project). On 2026-10-21 that also gave the files ANOTHER call's title ("House Lofi 02" and "04" saved as `House-Lofi-01-Warm-C-…mp3`); that naming bug is fixed, and each file now carries its own call's title. The session sharing is not: read each id's `urls` from `get_generation_status`, name local files yourself, and pass a `session_id` when the set must stay together.
+
+**Wants an EXISTING track, not a new song?** ("background music", "stock music", "royalty-free track") → don't generate. Use `search_stock_media` with `mediaType: "music"` (semantic vibe query — "tense cinematic pulse", "uplifting corporate background") → `get_stock_asset` for download URLs. Free, no credits. The `synci_*` tools are the paid SYNCI licensed catalog, not stock — use them only when the user wants a licensed catalog track.
+
+### CRITICAL Kolbo Platform Rules
+
+- **Model version, duration, and instrumental toggle are MCP-tool params.** Don't write `v4.5`, `30 seconds`, or `instrumental: true` inside the prompt fields themselves.
+- **Suno v6 is the current family**: `suno-v6` (the default music model), `suno-v6-mini`, `suno-v6-wild` — all **15 credits**. `suno-v5.5` / `suno-v5` / `suno-v4.5plus` are hidden (discontinued upstream); do not offer them.
+- **Exact track length = `duration_seconds`** (clamped 5–300s on the tool). **Suno is length-controllable as of v6** — 10 seconds to 6 minutes, slider or an exact typed `m:ss`. **Auto is the default**, and on Auto Suno picks its own natural length exactly as it always did, so only pass a length when the user actually asked for one.
+  - **Custom Mode only.** The provider returns a 422 if a duration arrives in Simple Mode, so length only lands alongside lyrics — the SDK/MCP path switches the request into Custom Mode automatically when `duration_seconds` is present.
+  - **`suno-v6-mini` does NOT honour length.** Measured, not assumed: 20s / 30s / 60s requests all came back ~200–220s. Never promise length control on Mini. `suno-v6` and `suno-v6-wild` honour it.
+  - Non-Suno length-controllable models (ElevenLabs Music, `music-v1`) still default to a ~10s track without it, so ALWAYS pass it there for jingles/beds.
+- **Short lengths are style-dependent — write a sparse prompt when you need a short clip.** Suno resolves a musical phrase before it stops: a sparse ambient prompt asked for 13s returns ~13s, a dense rock prompt asked for the same 13s returns ~42s. They converge by about 30s. For a genuinely short cue, thin the instrumentation in the `style` field instead of fighting the number.
+- **Suno usually returns TWO tracks, and does not always apply the requested length to both** — one can land on target while the other runs long. Check each track before delivering; the first track's length is not authoritative.
+- Suno generations have **two separate input fields**: a **Style / Description** field (`style` param) and a **Lyrics** field (`lyrics` param). Output your prompt as **TWO separate fenced code blocks** so the user (and the tool call) know exactly what goes where.
+- Tell the user to run the prompt multiple times — Suno output varies significantly between generations, that's a feature. Use `num_generations` if the tool supports it, or fire 2–4 parallel `generate_music` calls.
+
+### Suno V6 extras on `generate_music`
+
+- `variety` (whole number 0–4, higher = more varied takes) and `persona_voice_id` (an id from `list_music_personas`, sings in that saved voice) switch the request to Custom Mode. `persona_voice_id` does not mix with `singing_dna_id` / `singing_voice_id`.
+- `reference_images` (≤5) / `reference_videos` (1, ≤241 s) / `reference_audios` (6 s–30 min) inspire the song from PUBLIC URLs (upload local files first). They switch to Simple Mode: `duration_seconds` is not honoured, and they cannot be combined with `variety` or `persona_voice_id`. At most 10 references in total, style and lyrics counting one each.
+- Every result lists `tracks[]` with `audio_id` — keep it with the `generation_id`; every track operation below needs both.
+
+### Suno track operations (work on a finished Kolbo track)
+
+Each creates a NEW generation (the source is untouched), runs in the source track's session, and is priced on its own. Quote the price and get approval like any paid call. Async ones return a `generation_id`; poll it like any generation.
+
+| Want | Tool | Credits | Notes |
+|---|---|---|---|
+| Sing over an instrumental / stem | `add_vocals` | 12 | Source = `generation_id` + `audio_id`, or own audio (`audio_url` + `rights_confirmed`, or an `upload_id` from `import_music_audio`). `style` = the vocal style. |
+| Backing track under a vocal / a cappella | `add_instrumental` | 12 | Same sources. `tags` = accompaniment style. |
+| Rewrite one part ("new second verse") | `replace_music_section` | 5 | `start`/`end` seconds: window ≥10 s and ≤50% of the track. Give `prompt` or `lyrics`. ElevenLabs tracks use `edit_music_section` instead. |
+| Make it longer | `extend_music` | 15 | Continues from the end or `continue_at`. |
+| Lossless file for mixing | `export_music_wav` | 1 | Returns `wav_url`; a repeat for the same track is free. |
+| Visualizer video (cover art + waveform) | `make_music_video` | 5 | One video per track; a repeat returns the existing one. Optional `author` / `domain_name` overlay. |
+| MIDI notes | `generate_music_midi` | 2 | Source must be a finished Suno 2- or 12-stem separation made in the Kolbo music tool (2 stems = 10 cr). `separate_audio_stems` results do NOT qualify. Returns `midi_data` (notes, not a .mid file). |
+| Karaoke / word timings | `get_timed_lyrics` | 1 | Synchronous. Paid once per track, cached and free after. Instrumentals return `instrumental: true`. |
+| Reuse a voice and style | `create_music_persona` → `list_music_personas` | 0 | Optional `vocal_start`/`vocal_end` (10–30 s window where the voice is clear). Then `generate_music` with `persona_voice_id`. |
+
+### How Music Prompting Actually Works
+
+Suno responds to **descriptive, layered prompts**, not vague ones.
+- ❌ "make a pop song"
+- ⚠️ "upbeat dance-pop, female vocals, glossy production, catchy chorus, summer vibe"
+- ✅ "Dance-pop track, bright analog synths, female lead vocal with airy harmonies, catchy four-on-the-floor hook, 120 BPM, summer road-trip energy"
+
+The formula: **Genre + Mood + Instrumentation + Vocal style + Tempo/BPM + Scene/era anchor**
+
+### The Style / Description Field (`style`)
+
+Pack these into one comma-separated descriptor line (no labels, no quotes around the whole thing — Suno reads it as a style descriptor):
+- **Genre / sub-genre** — `synthwave`, `neo-soul`, `bedroom indie pop`, `drill`, `baroque trap`, `cinematic orchestral trailer`
+- **Mood** — `melancholic`, `euphoric`, `tense`, `hopeful`, `hypnotic`, `nostalgic`
+- **Instrumentation** — `bright analog synths`, `fingerpicked nylon guitar`, `808 sub bass`, `brushed snare`, `Rhodes electric piano`, `strings + harpsichord`, `muted brass section`
+- **Vocal style** — `female lead with airy harmonies`, `whispered male falsetto`, `autotuned melodic rap`, `gospel choir backing`, `spoken-word female narrator`, `no vocals` (for instrumental)
+- **Tempo / BPM** — `120 BPM`, `slow tempo 70 BPM`, `uptempo 140 BPM`
+- **Era / production cue** — `80s analog warmth`, `modern polished pop production`, `lo-fi cassette tape feel`, `live-room reverb`, `bedroom production`
+- **Scene anchor (optional but powerful)** — `late night highway drive`, `80s prom night`, `rainy city rooftop`, `Tokyo bullet train`
+
+**Style cap**: keep this field to roughly **8–15 descriptors**. More starts to muddy the output.
+
+### The Lyrics Field (`lyrics`)
+
+Use Suno's section tags to control structure. Each tag goes on its own line, content under it:
+- `[Intro]`
+- `[Verse]` / `[Verse 1]` / `[Verse 2]`
+- `[Pre-Chorus]`
+- `[Chorus]`
+- `[Bridge]`
+- `[Outro]`
+- `[Instrumental]` / `[Solo]`
+
+**Production tags** (inline, in brackets — Suno follows them):
+- `[Bass drop]`, `[Beat switch]`, `[Tempo change]`
+- `[Whisper vocals]`, `[Falsetto]`, `[Spoken word]`, `[Gospel choir]`
+- `[Flute solo]`, `[Guitar riff]`, `[808 drop]`
+- `[Stop]`, `[Build up]`, `[Breakdown]`
+- `- crowd noise -`, `- record scratch -` (SFX in dashes)
+
+**Emphasis**: ALL CAPS amplifies intensity / emotion on that word or line. Use sparingly for impact moments.
+
+**Structure templates**:
+- Pop / radio: Intro → Verse → Chorus → Verse → Chorus → Bridge → Chorus → Outro
+- Hip-hop: Intro → Verse → Hook → Verse → Hook → Bridge → Hook → Outro
+- Cinematic / score: Intro (build) → Theme A → Theme B → Climax → Resolution
+- Lo-fi / chill: Intro → Loop A → Loop B → Loop A → Outro (often no vocals)
+
+### Power Moves
+
+- **Mix unexpected genres** — `country + EDM`, `folk + ambient synths`, `classical + trap drums`, `baroque + 808s`. Best outputs often come from contrast.
+- **Scene-based language beats sound-only language** — `late-night highway drive` does more work than `atmospheric`.
+- **Tags shape structure better than prose** — don't write "then there's a chorus", write `[Chorus]`.
+- **No real artist names** — Suno blocks them. Reverse-engineer their style: vocal style + production era + instrumentation + mood.
+- **Lean into imperfection** — Suno's quirks often produce the best moments. Don't over-correct.
+- **Generate multiple times** — same prompt produces wildly different songs. Tell the user to run 3–4 takes.
+
+### Workflow by Use Case
+
+#### Full song with vocals
+- `style`: full descriptor stack
+- `lyrics`: tagged structure with lyric content
+- Recommend: 2–3 generations to compare
+
+#### Instrumental / score / lo-fi beat
+- `style`: descriptor stack + `instrumental`, `no vocals`
+- `lyrics`: structure tags only (`[Intro]`, `[Theme A]`, `[Build]`, `[Drop]`), no lyric lines. Or leave empty and pass `instrumental: true` to the tool.
+
+#### Jingle / ad music (15–30s)
+- `style`: short, punchy descriptor (`upbeat retail pop jingle, female vocal, claps, glossy production, summer energy`)
+- `lyrics`: 2–4 short lines max, often just chorus
+- Pass the exact `duration_seconds` (e.g. `15` or `30`). Suno v6 / v6 Wild honour it in Custom Mode (supply `lyrics`), ElevenLabs Music honours it either way, `suno-v6-mini` does not. Keep the style sparse — a dense arrangement overruns a short target.
+
+#### Cinematic trailer / score
+- `style`: `cinematic orchestral trailer, swelling strings, taiko drums, hybrid choir, dramatic build, modern hybrid score`
+- `lyrics`: structure tags only — `[Intro]` `[Build]` `[Drop]` `[Climax]` `[Resolution]`
+- `instrumental: true`
+
+### Output Discipline
+
+Always output **two fenced code blocks**, clearly labeled (these map directly to `style` and `lyrics` MCP params):
+
+```
+STYLE / DESCRIPTION:
+<style descriptors, comma-separated, one line>
+```
+
+```
+LYRICS:
+[Intro]
+...
+[Verse]
+...
+[Chorus]
+...
+```
+
+When summarizing to the user, state separately:
+- **Instrumental:** yes / no (the `instrumental` param)
+- **Length:** Auto, or the exact `duration_seconds` you passed (10s–6min; Suno needs Custom Mode, and `suno-v6-mini` ignores it)
+- **Run takes:** N generations (usually 2–4) — fire them in parallel
+- **Why this works:** 1 line on the key genre / structure / instrumentation choice
+
+If the user is in any language other than English, explanations in their language; lyric language matches what the user wants (any language works in Suno).
+
+## Bundled references
+
+- [acting-direction](references/acting-direction.md)
+- [asset-preproduction](references/asset-preproduction.md)
+- [audio-dialogue-music](references/audio-dialogue-music.md)
+- [blocking-continuity](references/blocking-continuity.md)
+- [cinematography](references/cinematography.md)
+- [directing-document](references/directing-document.md)
+- [physics-action](references/physics-action.md)
+- [production-bible](references/production-bible.md)
+- [prompt-contracts](references/prompt-contracts.md)
+- [routing](references/routing.md)
+- [scene-engine](references/scene-engine.md)
+- [seedance25-craft](references/seedance25-craft.md)
+- [validation](references/validation.md)
+- [workflows](references/workflows.md)
+- [gpt-image](references/gpt-image.md)
+- [music](references/music.md)
+- [nano-banana](references/nano-banana.md)
+- [seedance](references/seedance.md)
+- [seedance25](references/seedance25.md)
+- [cost-and-validation](references/cost-and-validation.md)
+- [dtc-ads](references/dtc-ads.md)
+- [filmmaking](references/filmmaking.md)
+- [marketing-studio](references/marketing-studio.md)
+- [marketplace-cards](references/marketplace-cards.md)
+- [product-photoshoot](references/product-photoshoot.md)
+- [production-log](references/production-log.md)
+- [production-planning](references/production-planning.md)
+- [prompt-structure](references/prompt-structure.md)
+- [talking-avatar-wan3](references/talking-avatar-wan3.md)
+- [thumbnails](references/thumbnails.md)
+- [troubleshooting](references/troubleshooting.md)
+- [ugc-smartphone](references/ugc-smartphone.md)
+- [visual-dna](references/visual-dna.md)

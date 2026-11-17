@@ -1,0 +1,149 @@
+---
+version: 0.1.17
+name: doseedo-audio
+description: |
+  Separate a mix into stems (with per-stem MIDI), re-perform a song as a
+  cover with different instruments, transcribe audio to notes, play the
+  music you write (every part's notes) on 50+ AI instruments or a CUSTOM instrument
+  trained from a recording, timbre transfer, sound design / foley — via
+  the `doo` CLI (doseedo). Each job is one command, priced before it runs.
+  Use when: "separate this song", "give me the stems / vocals / drums / an
+  acapella", "isolate the sax", "cover this song on guitar", "swap the piano
+  for strings", "transcribe this solo", "what notes is this", "make me a
+  track that sounds like…", "30 seconds of lo-fi piano", "render this MIDI
+  as a trombone", "make an instrument from this recording", "play this
+  with that clip's tone", "a door-slam / whoosh sound effect (SFX)", "remove the
+  vocals", "audio to MIDI". NOT for: turning a recording into a full DAW session or
+  editing a DAW session (use doseedo-session), converting a project between
+  DAWs (use doseedo-convert), or audio-format conversion.
+argument-hint: "[file-or-prompt] [--models orchestra] [--instruments sax,trumpet] [--json]"
+allowed-tools: Bash
+---
+
+# doseedo audio
+
+Stems, covers, transcription and generation through the `doo` CLI. One
+command per deliverable; the result is files on disk plus a verify hint.
+
+## Step 0 — bootstrap
+
+1. `doo version` — if missing: `npm install -g @doseedo/cli` (Node ≥ 20).
+2. `doo whoami` — if not signed in, ask the user to run `doo login`
+   (interactive: it opens a browser) and wait for their confirmation. A
+   headless alternative is `export DOO_API_KEY=dsk_live_…` from
+   https://doseedo.com/settings/api-keys.
+3. `doo account` — tier, the monthly credit pool (every tool draws it: free
+   120, Pro 2,000), purchased extra-usage credits, and storage.
+
+## Pick the recipe
+
+| The user wants | Run | Cost · time |
+|---|---|---|
+| stems, an acapella / instrumental, one instrument isolated | `doo stems <audio>` | 20 credits · ~2 min |
+| orchestral / horn / named instruments out of a mix | `doo stems <audio> --models orchestra --instruments "saxophone,trumpet"` | 1 + ⌈n/8⌉ · ~2–4 min |
+| the same song re-performed, instruments swapped, new lyrics | `doo cover <audio> [--instruments '{"piano":"electric_guitar"}'] [--lyrics …]` | 40 credits · 3–8 min |
+| the notes of a clip (JSON: pitch, onset, offset, velocity) | `doo transcribe <audio or https URL> [--instrument sax] [--tempo-bpm 120]` | up to 2 credits · 15–60 s |
+| music to deliver — a bed for a video, a theme, an instrumental, a song | doseedo does not compose: YOU write every part as notes (length → bars, key, form, players from `doseedo_instruments`), then MCP `doseedo_render_score {parts}` (one stem per part + a mix) → `doseedo_mix`; one instrument: `doo render-midi`. Steps: `doo recipes get compose-piece`. (`doo generate "<prompt>"` is a prompt-only sketch with no notes behind it — often near-silent or droning; never the deliverable) | 10 credits per 30 s window per 6 parts · 2–5 min |
+| the key / tempo / meter / sections / chords of a recording | `doo analyze-song <audio or https URL>` (synchronous) | free · 5–20 s |
+| a part in a given key / at a session's tempo, or MIDI rendered as an instrument | write the notes yourself, then `doo render-midi --notes '[…]' --instrument trombone --bpm 92` (or `--midi-url`, or `doo generate --midi part.mid -i trombone`; see "Key, tempo and takes") | 10 credits per 30 s · 1–3 min |
+| YOUR OWN instrument from a recording (a rare/folk instrument, one player's tone) | `doo custom-instrument <30 s–3 min solo recording> --instrument acoustic_guitar --name "My shamisen"` → `lora_id`; then `doo render-midi --notes '[…]' --instrument acoustic_guitar --bpm 92 --lora-id <id>` | 20 credits · 1–2 min to train |
+| your notes with the SOUND of a recording (timbre transfer) | `doo timbre-transfer --notes '[…]' --instrument violin --bpm 92 --timbre-audio-url <https URL of the reference>` (a separated stem is ideal) | 10 credits per 30 s · 1–3 min |
+| a recorded line (humming, a riff) played back by another instrument | `doo run cover_stem --audio-url <url> --instrument cello --duration-seconds 12` | 10 credits per 30 s · 30–90 s |
+| the gap between two clips (or a bar to redo) played again, the take around it kept | `doo run fill_gap --audio-url <url> --duration-seconds 32 --gap-start-seconds 16 --gap-end-seconds 24 --bpm 120` | 10 credits per 30 s of the audio + 1 dsp · 40–150 s |
+| a WHOLE score / arrangement (several parts at once) → a stem per part + a mix + a Logic/Ableton project | `doo score <MusicXML or multi-track MIDI URL> [--target ableton]` (the parts you wrote as notes: MCP `doseedo_render_score {parts}`); each part's `fit` receipt says whether it played its notes | 10 credits per 30 s window per 6 parts · 2–5 min |
+| music for a film or video that must hit the cuts, or a video scored and delivered | → doseedo-film: `doo run spot_video --video-key film.mp4` (the cue sheet from the cut), `doseedo_tempo_map` (an ad on one tempo: `fixed_bpm: true` → the tempo + `music_offset_s`), YOUR parts → `doseedo_render_score` (a big score: upload the .mid / .musicxml → `score_key`) → `doseedo_mix` (`target_lufs` = the delivery loudness) → `doo run score_to_picture` (the score on the picture, ducked under the dialogue) | spotting, mix and delivery: no credits; render as above |
+| a sound effect, foley, one-shot, loop or ambience | `doo sound-design --prompt "heavy wooden door slam in a stone hall" [--kind hit\|loop\|texture]` | 10 credits per 30 s · 15–40 s |
+| a full DAW session from a mix | → doseedo-session (`doo session`) | |
+
+`doo recipes` prints this list from the server; `doo recipes get <name>`
+shows a recipe's inputs, steps, outputs and verify rule. `doo jobs` lists
+every underlying job and `doo run <job> [--opt v] [file]` runs one directly
+(see [references/jobs.md](references/jobs.md)).
+
+## Rules
+
+1. **One command, then hand over the paths.** Every recipe prints the local
+   files it wrote (default `./<recipe>_<name>/`). Give the user those paths;
+   don't narrate uploading or polling, don't paste raw JSON.
+2. **Long jobs need a long tool timeout.** stems ~2 min, cover 3–8 min,
+   generate 1–3 min. Run the command with a 10-minute timeout, or submit
+   with `--no-wait`, do other work, and `doo wait <task_id> --kind <kind>`.
+3. **Cost is shown before spending** (`≈ N credit(s) · M left`). If the line
+   says `⚠ short`, stop and tell the user rather than letting the gate refuse.
+   `doo cost <recipe> [--flags]` answers "how much" without submitting.
+4. **Verify from the result, not from optimism.** Each recipe ends with a
+   `verify:` line — read it. stems: every requested stem is present (a
+   missing one means the model heard none of that instrument; say so). cover:
+   `result.cover.instrument_swaps` reports each swap as applied or not.
+   transcribe: notes non-empty and in the instrument's range. generate:
+   duration near the request.
+5. **`--json` for anything you parse.** Progress goes to stderr; stdout is
+   the result: `{recipe, inputs, steps[], files[{name, path, bytes, url}], verify}`.
+6. **Big files are fine.** The CLI uploads straight to storage (no proxy body
+   cap). Pass paths with spaces quoted.
+7. **Prefer the quality default; don't downgrade to save credits unless
+   asked.** `--models auto` adapts the stem set; `orchestra` needs
+   `--instruments`; `detect` picks from the orchestra bank and refunds what
+   it skips.
+
+## Key, tempo and takes
+
+- **Prompt generation does not take a key, and `--bpm` is only a caption
+  hint** (the output can drift from it). Never promise "in D minor at 92 BPM"
+  from a prompt.
+- **For a part that must fit a key and tempo, YOU write the MIDI**: get the
+  key and tempo from the material — `doo analyze-song <reference>` (key, bpm,
+  meter, sections, chords; synchronous, free) — never by guessing or asking;
+  compose the notes in that key at that tempo as
+  `[{pitch, start_beats, duration_beats, velocity}]` (beats from bar 1), then
+  render them: `doo render-midi --notes '[…]' --instrument <id> --bpm <tempo>`
+  (the instrument comes from the catalog — the MCP tool `doseedo_instruments` (not in it? train
+  one from a recording: `doo custom-instrument`)
+  lists 40+ with each one's exact call, range in concert pitch and presets;
+  a World instrument is named on its own, `--instrument koto`, and resolves
+  to its call `--instrument acoustic_guitar --timbre-preset koto:preset1`;
+  raw registry: `curl https://api.doseedo.com/api/instruments`; `--midi-url`
+  takes a .mid instead; `--voice-split` for chords; `--takes 1–4`; `--refine
+  light|shred`). Keep one voice per part. Check the harmony first for free with
+  `doo run analyze_midi --notes '[…]' --bpm <tempo> --mode chord`. The notes are
+  rendered AS WRITTEN — no snapping. Shell fallback, same request: `doo generate
+  --midi part.mid -i <id>` or `curl -X POST
+  https://api.doseedo.com/api/generate -H "X-API-Key: $DOO_API_KEY"
+  -F midiFile=@part.mid -F instrument=<id> -F prompt=<id> -F duration=<s>
+  -F bpm=<tempo> -F lyrics="[Instrumental]"`.
+- **Several takes come back** for a pitched one-voice MIDI part
+  (`takes[{url, rank, score}]`, best-first by a scorer; the CLI saves the top
+  one; `seed` re-renders close to it). The model sometimes misses or changes a
+  note — expected. Hand the user the takes, or pick one by listening /
+  transcribing each (`doo transcribe <take url>`) and comparing against the
+  notes you sent, and say how you chose.
+- **Covers re-play transcribed notes**: an instrument swap transcribes the
+  stem and re-performs it, so small note differences from the source are
+  normal. Read `result.cover.instrument_swaps`, offer the result to judge.
+  Knobs on `doo cover`: `--swap-cns 0–1` (how far a swapped stem may
+  depart, default 0.35), `--regen all|<stems>` (default: only swapped stems
+  regenerate); via `doo run cover_song`: also `--labels
+  '{"other":"trumpet"}'` (fix a mislabelled stem) and `--midi-only`.
+- Every result URL is a pre-signed link: a plain `curl -OJ <url>` downloads
+  it with no auth header until its `expires_at` (24 h). Pass a result URL
+  straight to `transcribe` as `audio_url`.
+
+## Examples
+
+```bash
+doo stems "My Song.wav"                                  # vocals drums bass guitar piano other (+ .mid each)
+doo stems solo.wav --models orchestra --instruments "saxophone,trumpet,trombone"
+doo cover song.wav --instruments '{"piano":"electric_guitar","sax":"violin"}'
+doo transcribe riff.wav --instrument sax --json | jq '.steps[0].result.result.notes | length'
+doo recipes get compose-piece                             # music to deliver: YOU write the parts, doseedo plays + mixes them
+doo analyze-song song.wav --json | jq '{key, bpm, meter}'
+doo render-midi --notes '[{"pitch":62,"start_beats":0,"duration_beats":2},{"pitch":65,"start_beats":2,"duration_beats":2}]' --instrument cello --bpm 92
+doo session song.wav --midi-stems piano,bass               # → doseedo-session
+```
+
+## When something fails
+
+Exit `3` → not signed in (`doo login`). Exit `2` → the job failed; the
+message names the plane and the reason. `429` → daily/monthly allowance
+reached (the message gives the reset time and https://doseedo.com/plans).
+More in [references/troubleshooting.md](references/troubleshooting.md).
