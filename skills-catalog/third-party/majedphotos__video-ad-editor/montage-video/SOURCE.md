@@ -6,7 +6,7 @@
 - Pinned commit: `3e4c4e9d5c1858799d8b26cf8ea6efabad34cd3a`
 - License: MIT (the repository's LICENSE file is beside this folder: `../LICENSE`)
 - Auditor grade: CLEARED_STATIC
-- Quarantine file: `/Users/bear/Documents/CoWork/bear-textbooks/books/auditor/skill-triage/quarantine/all/majedphotos__video-ad-editor/montage-video__SKILL.md`
+- Quarantine file (on the author's machine, not on GitHub): `books/auditor/skill-triage/quarantine/all/majedphotos__video-ad-editor/montage-video__SKILL.md`
 
 Copied from the auditor's quarantine (2026-10-28 download). Third-party text: static scan only, not read line by line, never run.
 

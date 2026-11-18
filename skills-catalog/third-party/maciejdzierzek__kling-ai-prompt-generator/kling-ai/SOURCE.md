@@ -6,7 +6,7 @@
 - Pinned commit: `2487c4b8b5b3fe44d7186f825aba8cf78496b4ce`
 - License: MIT (the repository's LICENSE file is beside this folder: `../LICENSE`)
 - Auditor grade: CLEARED_STATIC
-- Quarantine file: `/Users/bear/Documents/CoWork/bear-textbooks/books/auditor/skill-triage/quarantine/all/maciejdzierzek__kling-ai-prompt-generator/skills__kling-ai__SKILL.md`
+- Quarantine file (on the author's machine, not on GitHub): `books/auditor/skill-triage/quarantine/all/maciejdzierzek__kling-ai-prompt-generator/skills__kling-ai__SKILL.md`
 
 Copied from the auditor's quarantine (2026-10-28 download). Third-party text: static scan only, not read line by line, never run.
 

@@ -4,7 +4,7 @@
 - Repository: https://github.com/newsbubbles/ismail
 - Path in repository: `skills/ismail/SKILL.md`
 - Pinned commit: `0595d2536f5eb0fb653af3c92d8e9eb60a24b1c1`
-- License: MIT (LICENSE file at the pinned commit copied beside this folder: `/Users/bear/Documents/CoWork/bear-textbooks/books/agentic-filmmaking-book/skills-catalog/third-party/newsbubbles__ismail/LICENSE`)
+- License: MIT (LICENSE file at the pinned commit copied beside this folder: `skills-catalog/third-party/newsbubbles__ismail/LICENSE`)
 - Auditor grade: NOT-ASSESSED
 
 Fetched from GitHub on 2026-11-17 at the pinned commit, with Bear's OK. Third-party text: never run, not read line by line. The auditor did not assess this repository (NOT-ASSESSED), so no static scan exists for it.

@@ -6,7 +6,7 @@
 - Pinned commit: `d89e731a59ea7e9bf623e6358effe76458dd7f29`
 - License: Apache-2.0 (the repository's LICENSE file is beside this folder: `../LICENSE`)
 - Auditor grade: CLEARED_STATIC
-- Quarantine file: `/Users/bear/Documents/CoWork/bear-textbooks/books/auditor/skill-triage/quarantine/all/google-gemini__gemini-skills/skills__gemini-omni-flash-api__SKILL.md`
+- Quarantine file (on the author's machine, not on GitHub): `books/auditor/skill-triage/quarantine/all/google-gemini__gemini-skills/skills__gemini-omni-flash-api__SKILL.md`
 
 Copied from the auditor's quarantine (2026-10-28 download). Third-party text: static scan only, not read line by line, never run.
 

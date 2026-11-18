@@ -6,7 +6,7 @@
 - Pinned commit: `fbb838db745c731e85cf13189a9906c8c92115b1`
 - License: MIT (the repository's LICENSE file is beside this folder: `../LICENSE`)
 - Auditor grade: CLEARED_STATIC
-- Quarantine file: `/Users/bear/Documents/CoWork/bear-textbooks/books/auditor/skill-triage/quarantine/all/danielrosehill__Claude-Visual-Communications-Plugin/skills__run-fal-generation__SKILL.md`
+- Quarantine file (on the author's machine, not on GitHub): `books/auditor/skill-triage/quarantine/all/danielrosehill__Claude-Visual-Communications-Plugin/skills__run-fal-generation__SKILL.md`
 
 Copied from the auditor's quarantine (2026-10-28 download). Third-party text: static scan only, not read line by line, never run.
 

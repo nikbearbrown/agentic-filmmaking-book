@@ -5,7 +5,7 @@
 
 # Agentic Filmmaking: Vision
 
-> ***Agentic Filmmaking*, the general-audience course: starting point, not yet revised.** This is the single-course plan of 2026-11-16. On 2026-11-17 Bear split the work into two repos. This one is for a general audience without a film background: people who probably know ChatGPT, and maybe a little Midjourney or Higgsfield. In Bear's words, it is the track *"where there's much more time spent on story making and filmmaking and why that's critical."* The course for trained filmmakers who already have a script and a vision, like Galen, is *AI Filmmaking*, in [/Users/bear/Documents/CoWork/bear-textbooks/books/ai-filmmaking](/Users/bear/Documents/CoWork/bear-textbooks/books/ai-filmmaking). Not yet revised for this audience: the reader paragraph, how much more weight the story chapters get, and whether Galen's film stays the running case. GATE 0 unsigned.
+> ***Agentic Filmmaking*, the general-audience course: starting point, not yet revised.** This is the single-course plan of 2026-11-16. On 2026-11-17 Bear split the work into two repos. This one is for a general audience without a film background: people who probably know ChatGPT, and maybe a little Midjourney or Higgsfield. In Bear's words, it is the track *"where there's much more time spent on story making and filmmaking and why that's critical."* The course for trained filmmakers who already have a script and a vision, like Galen, is *AI Filmmaking*, in [nikbearbrown/ai-filmmaking](https://github.com/nikbearbrown/ai-filmmaking). Not yet revised for this audience: the reader paragraph, how much more weight the story chapters get, and whether Galen's film stays the running case. GATE 0 unsigned.
 
 
 **Author:** Nik Bear Brown
